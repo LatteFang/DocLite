@@ -1,6 +1,9 @@
 import os
+import logging
 import fitz  # PyMuPDF
 from docx import Document
+
+logger = logging.getLogger(__name__)
 
 def extract_text(file_info: dict) -> str:
     """根据文件类型提取纯文本内容"""
@@ -17,7 +20,7 @@ def extract_text(file_info: dict) -> str:
         else:
             return ""
     except Exception as e:
-        print(f"解析文件失败 {path}: {e}")
+        logger.error(f"解析文件失败 {path}: {e}")
         return ""
 
 def _extract_pdf(file_path: str) -> str:
