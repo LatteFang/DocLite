@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocLite - 本地文档检索</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .search-hl { background: #fef08a; color: #000; padding: 0 2px; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-4xl mx-auto px-4 py-10">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">DocLite</h1>
+        <p class="text-center text-gray-500 mb-8">本地离线文档全文检索工具</p>
+
+        <!-- 搜索栏 -->
+        <div class="flex gap-2 mb-6">
+            <input id="searchInput" type="text" placeholder="输入关键词搜索文档..."
+                class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="buildBtn" class="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                重建索引
+            </button>
+        </div>
+
+        <!-- 结果统计 -->
+        <div id="stats" class="text-gray-500 text-sm mb-4 hidden">
+            共找到 <span id="totalCount">0</span> 条结果
+        </div>
+
+        <!-- 结果列表 -->
+        <div id="resultList" class="space-y-3">
+            <div class="text-center text-gray-400 py-10">输入关键词开始搜索</div>
+        </div>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const resultList = document.getElementById('resultList');
+        const stats = document.getElementById('stats');
+        const totalCount = document.getElementById('totalCount');
+        const buildBtn = document.getElementById('buildBtn');
+
+        let timer = null;
+
+        // 防抖搜索
+        searchInput.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(doSearch, 300);
+        });
+
+        // 回车搜索
+        searchInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') doSearch();
+        });
+
+        // 重建索引
+        buildBtn.addEventListener('click', async () => {
+            buildBtn.disabled = true;
+            buildBtn.textContent = '构建中...';
+            try {
+                const res = await fetch('/api/index/build', { method: 'POST' });
+                const data = await res.json();
+                alert(`索引构建完成，共扫描 ${data.scanned_files} 个文件`);
+            } catch (e) {
+                alert('构建失败: ' + e.message);
+            } finally {
+                buildBtn.disabled = false;
+                buildBtn.textContent = '重建索引';
+            }
+        });
+
+        async function doSearch() {
+            const q = searchInput.value.trim();
+            if (!q) {
+                resultList.innerHTML = '<div class="text-center text-gray-400 py-10">输入关键词开始搜索</div>';
+                stats.classList.add('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                renderResults(data);
+            } catch (e) {
+                resultList.innerHTML = '<div class="text-red-500 text-center py-10">搜索出错</div>';
+            }
+        }
+
+        function renderResults(data) {
+            stats.classList.remove('hidden');
+            totalCount.textContent = data.total;
+
+            if (data.results.length === 0) {
+                resultList.innerHTML = '<div class="text-center text-gray-400 py-10">未找到匹配结果</div>';
+                return;
+            }
+
+            resultList.innerHTML = data.results.map(item => `
+                <div class="bg-white p-4 rounded-lg border border-gray-200 hover:shadow-sm transition">
+                    <div class="flex justify-between items-start mb-1">
+                        <div class="font-medium text-blue-600 truncate" title="${item.path}">${item.filename}</div>
+                        <span class="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 ml-2 shrink-0">${item.file_type}</span>
+                    </div>
+                    <div class="text-sm text-gray-600 line-clamp-2">${item.snippet}</div>
+                    <div class="text-xs text-gray-400 mt-2 truncate">${item.path}</div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
