@@ -14,23 +14,79 @@
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">DocLite</h1>
         <p class="text-center text-gray-500 mb-8">本地离线文档全文检索工具</p>
 
-        <!-- 搜索栏 -->
-        <div class="flex gap-2 mb-6">
-            <input id="searchInput" type="text" placeholder="输入关键词搜索文档..."
-                class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <button id="buildBtn" class="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-                重建索引
-            </button>
+        <!-- 模式切换 -->
+        <div class="flex justify-center mb-6">
+            <div class="bg-gray-200 rounded-lg p-1">
+                <button id="searchTab" class="px-4 py-2 rounded-md bg-white shadow-sm text-gray-800 font-medium">搜索</button>
+                <button id="chatTab" class="px-4 py-2 rounded-md text-gray-600 hover:text-gray-800">问答</button>
+            </div>
         </div>
 
-        <!-- 结果统计 -->
-        <div id="stats" class="text-gray-500 text-sm mb-4 hidden">
-            共找到 <span id="totalCount">0</span> 条结果
+        <!-- 搜索模式 -->
+        <div id="searchMode">
+            <!-- 搜索栏 -->
+            <div class="flex gap-2 mb-6">
+                <input id="searchInput" type="text" placeholder="输入关键词搜索文档..."
+                    class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="buildBtn" class="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                    重建索引
+                </button>
+            </div>
+
+            <!-- 结果统计 -->
+            <div id="stats" class="text-gray-500 text-sm mb-4 hidden">
+                共找到 <span id="totalCount">0</span> 条结果
+            </div>
+
+            <!-- 结果列表 -->
+            <div id="resultList" class="space-y-3">
+                <div id="searchLoading" class="text-center py-10 hidden">
+                    <div class="inline-flex items-center gap-2 text-gray-500">
+                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>搜索中...</span>
+                    </div>
+                </div>
+                <div id="searchEmpty" class="text-center text-gray-400 py-10">输入关键词开始搜索</div>
+            </div>
+
+            <!-- 分页控件 -->
+            <div id="pagination" class="flex justify-center items-center gap-2 mt-6 hidden">
+                <button id="prevBtn" class="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                    上一页
+                </button>
+                <span id="pageInfo" class="text-sm text-gray-600">第 1 页</span>
+                <button id="nextBtn" class="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                    下一页
+                </button>
+            </div>
         </div>
 
-        <!-- 结果列表 -->
-        <div id="resultList" class="space-y-3">
-            <div class="text-center text-gray-400 py-10">输入关键词开始搜索</div>
+        <!-- 问答模式 -->
+        <div id="chatMode" class="hidden">
+            <!-- 索引按钮 -->
+            <div class="mb-4">
+                <button id="ragIndexBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    构建 RAG 索引
+                </button>
+                <span id="ragIndexStatus" class="ml-2 text-sm text-gray-500"></span>
+            </div>
+
+            <!-- 聊天消息区域 -->
+            <div id="chatMessages" class="bg-white rounded-lg border border-gray-200 p-4 mb-4 h-96 overflow-y-auto">
+                <div class="text-center text-gray-400 py-10">输入问题开始问答</div>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="flex gap-2">
+                <input id="chatInput" type="text" placeholder="输入问题..."
+                    class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="sendBtn" class="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    发送
+                </button>
+            </div>
         </div>
     </div>
 
@@ -40,8 +96,26 @@
         const stats = document.getElementById('stats');
         const totalCount = document.getElementById('totalCount');
         const buildBtn = document.getElementById('buildBtn');
+        const pagination = document.getElementById('pagination');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const pageInfo = document.getElementById('pageInfo');
+        const searchTab = document.getElementById('searchTab');
+        const chatTab = document.getElementById('chatTab');
+        const searchMode = document.getElementById('searchMode');
+        const chatMode = document.getElementById('chatMode');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const ragIndexBtn = document.getElementById('ragIndexBtn');
+        const ragIndexStatus = document.getElementById('ragIndexStatus');
 
         let timer = null;
+        let currentPage = 1;
+        let totalPages = 1;
+        const perPage = 20;
+        let chatHistory = [];
+        let searchHistory = JSON.parse(localStorage.getItem('doclite_search_history') || '[]');
 
         // XSS 防护：转义 HTML 特殊字符
         function escapeHtml(text) {
@@ -51,11 +125,230 @@
             return div.innerHTML;
         }
 
+        // 模式切换
+        searchTab.addEventListener('click', () => {
+            searchTab.classList.add('bg-white', 'shadow-sm', 'text-gray-800', 'font-medium');
+            searchTab.classList.remove('text-gray-600');
+            chatTab.classList.remove('bg-white', 'shadow-sm', 'text-gray-800', 'font-medium');
+            chatTab.classList.add('text-gray-600');
+            searchMode.classList.remove('hidden');
+            chatMode.classList.add('hidden');
+        });
+
+        chatTab.addEventListener('click', () => {
+            chatTab.classList.add('bg-white', 'shadow-sm', 'text-gray-800', 'font-medium');
+            chatTab.classList.remove('text-gray-600');
+            searchTab.classList.remove('bg-white', 'shadow-sm', 'text-gray-800', 'font-medium');
+            searchTab.classList.add('text-gray-600');
+            chatMode.classList.remove('hidden');
+            searchMode.classList.add('hidden');
+        });
+
+        // RAG 索引
+        ragIndexBtn.addEventListener('click', async () => {
+            ragIndexBtn.disabled = true;
+            ragIndexBtn.textContent = '索引中...';
+            ragIndexStatus.textContent = '正在构建 RAG 索引，请稍候...';
+            try {
+                const res = await fetch('/api/rag/index', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    ragIndexStatus.textContent = 'RAG 索引构建完成！';
+                    setTimeout(() => { ragIndexStatus.textContent = ''; }, 3000);
+                } else {
+                    ragIndexStatus.textContent = '索引失败: ' + (data.detail || data.message || '未知错误');
+                }
+            } catch (e) {
+                ragIndexStatus.textContent = '索引失败: 网络错误，请检查服务是否启动';
+            } finally {
+                ragIndexBtn.disabled = false;
+                ragIndexBtn.textContent = '构建 RAG 索引';
+            }
+        });
+
+        // 聊天发送
+        sendBtn.addEventListener('click', doChat);
+        chatInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                doChat();
+            }
+        });
+
+        async function doChat() {
+            const question = chatInput.value.trim();
+            if (!question) return;
+
+            // 显示用户问题
+            chatHistory.push({ role: 'user', content: question });
+            renderChatMessages();
+            chatInput.value = '';
+            sendBtn.disabled = true;
+
+            // 显示加载状态
+            chatHistory.push({ role: 'assistant', content: '思考中...', loading: true });
+            renderChatMessages();
+
+            try {
+                const res = await fetch(`/api/chat?question=${encodeURIComponent(question)}`);
+                const data = await res.json();
+                
+                // 移除加载状态
+                chatHistory.pop();
+                
+                // 显示回答
+                chatHistory.push({ 
+                    role: 'assistant', 
+                    content: data.answer,
+                    sources: data.sources,
+                    confidence: data.confidence
+                });
+                renderChatMessages();
+            } catch (e) {
+                // 移除加载状态
+                chatHistory.pop();
+                
+                chatHistory.push({ role: 'assistant', content: '抱歉，处理问题时出错。' });
+                renderChatMessages();
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        function renderChatMessages() {
+            if (chatHistory.length === 0) {
+                chatMessages.innerHTML = '<div class="text-center text-gray-400 py-10">输入问题开始问答</div>';
+                return;
+            }
+
+            chatMessages.innerHTML = chatHistory.map(msg => {
+                if (msg.role === 'user') {
+                    return `
+                        <div class="flex justify-end mb-4">
+                            <div class="bg-blue-600 text-white px-4 py-2 rounded-lg max-w-3xl">
+                                ${escapeHtml(msg.content)}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    let sourcesHtml = '';
+                    if (msg.sources && msg.sources.length > 0) {
+                        sourcesHtml = `
+                            <div class="mt-3 pt-3 border-t border-gray-200">
+                                <div class="text-xs text-gray-500 mb-2">参考来源 (${msg.sources.length} 个)：</div>
+                                ${msg.sources.map((s, idx) => `
+                                    <div class="text-xs text-gray-600 mb-2 p-2 bg-gray-50 rounded">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="font-medium">[${idx + 1}]</span>
+                                            <span class="text-blue-600">${escapeHtml(s.filename)}</span>
+                                            <span class="text-gray-400">(${escapeHtml(s.file_type)})</span>
+                                            <span class="text-green-600">${(s.similarity * 100).toFixed(1)}% 匹配</span>
+                                        </div>
+                                        <div class="text-gray-500 line-clamp-2">${escapeHtml(s.excerpt)}</div>
+                                        <button onclick="previewFile('${escapeHtml(s.path)}')" class="text-blue-500 hover:text-blue-700 mt-1">预览文件</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    }
+                    if (msg.loading) {
+                        return `
+                            <div class="flex justify-start mb-4">
+                                <div class="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg max-w-3xl">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="animate-spin h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>${escapeHtml(msg.content)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    return `
+                        <div class="flex justify-start mb-4">
+                            <div class="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg max-w-3xl">
+                                <div class="whitespace-pre-wrap">${escapeHtml(msg.content)}</div>
+                                ${sourcesHtml}
+                            </div>
+                        </div>
+                    `;
+                }
+            }).join('');
+
+            // 滚动到底部
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // 保存搜索历史
+        function saveSearchHistory(query) {
+            if (!query) return;
+            
+            // 移除重复项
+            searchHistory = searchHistory.filter(item => item !== query);
+            
+            // 添加到开头
+            searchHistory.unshift(query);
+            
+            // 最多保留 10 条
+            if (searchHistory.length > 10) {
+                searchHistory = searchHistory.slice(0, 10);
+            }
+            
+            localStorage.setItem('doclite_search_history', JSON.stringify(searchHistory));
+        }
+
+        // 显示搜索历史
+        function showSearchHistory() {
+            if (searchHistory.length === 0) return;
+            
+            const historyHtml = `
+                <div class="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg mt-1 shadow-lg z-10">
+                    <div class="p-2 text-xs text-gray-500 border-b">搜索历史</div>
+                    ${searchHistory.map(item => `
+                        <div class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm" onclick="searchFromHistory('${escapeHtml(item)}')">
+                            ${escapeHtml(item)}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            // 移除已有的历史下拉框
+            const existingHistory = document.querySelector('.search-history');
+            if (existingHistory) existingHistory.remove();
+            
+            // 添加新的历史下拉框
+            const historyDiv = document.createElement('div');
+            historyDiv.className = 'search-history relative';
+            historyDiv.innerHTML = historyHtml;
+            searchInput.parentNode.appendChild(historyDiv);
+        }
+
+        // 从历史记录搜索
+        function searchFromHistory(query) {
+            searchInput.value = query;
+            const historyDiv = document.querySelector('.search-history');
+            if (historyDiv) historyDiv.remove();
+            doSearch();
+        }
+
+        // 隐藏搜索历史
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target)) {
+                const historyDiv = document.querySelector('.search-history');
+                if (historyDiv) historyDiv.remove();
+            }
+        });
+
         // 防抖搜索
         searchInput.addEventListener('input', () => {
             clearTimeout(timer);
             timer = setTimeout(doSearch, 300);
         });
+
+        // 显示搜索历史
+        searchInput.addEventListener('focus', showSearchHistory);
 
         // 回车搜索
         searchInput.addEventListener('keydown', e => {
@@ -66,54 +359,168 @@
         buildBtn.addEventListener('click', async () => {
             buildBtn.disabled = true;
             buildBtn.textContent = '构建中...';
+            buildBtn.classList.add('opacity-50');
             try {
                 const res = await fetch('/api/index/build', { method: 'POST' });
                 const data = await res.json();
-                alert(`索引构建完成，共扫描 ${data.scanned_files} 个文件`);
+                if (data.status === 'ok') {
+                    alert(`索引构建完成，共扫描 ${data.scanned_files} 个文件`);
+                } else {
+                    alert('构建失败: ' + (data.message || '未知错误'));
+                }
             } catch (e) {
-                alert('构建失败: ' + e.message);
+                alert('构建失败: 网络错误，请检查服务是否启动');
             } finally {
                 buildBtn.disabled = false;
                 buildBtn.textContent = '重建索引';
+                buildBtn.classList.remove('opacity-50');
+            }
+        });
+
+        // 分页按钮事件
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                doSearch();
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                doSearch();
             }
         });
 
         async function doSearch() {
             const q = searchInput.value.trim();
             if (!q) {
-                resultList.innerHTML = '<div class="text-center text-gray-400 py-10">输入关键词开始搜索</div>';
+                document.getElementById('searchLoading').classList.add('hidden');
+                document.getElementById('searchEmpty').classList.remove('hidden');
                 stats.classList.add('hidden');
+                pagination.classList.add('hidden');
                 return;
             }
 
+            // 保存搜索历史
+            saveSearchHistory(q);
+
+            // 显示加载状态
+            document.getElementById('searchLoading').classList.remove('hidden');
+            document.getElementById('searchEmpty').classList.add('hidden');
+            stats.classList.add('hidden');
+            pagination.classList.add('hidden');
+
             try {
-                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&page=${currentPage}&per_page=${perPage}`);
                 const data = await res.json();
                 renderResults(data);
             } catch (e) {
-                resultList.innerHTML = '<div class="text-red-500 text-center py-10">搜索出错</div>';
+                document.getElementById('searchLoading').classList.add('hidden');
+                document.getElementById('searchEmpty').textContent = '搜索出错，请重试';
+                document.getElementById('searchEmpty').classList.remove('hidden');
+            }
+        }
+
+        // 打开原文件
+        async function openFile(filePath) {
+            try {
+                const res = await fetch(`/api/open?file_path=${encodeURIComponent(filePath)}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    // 成功打开，不显示提示
+                } else {
+                    alert('打开失败: ' + (data.detail || data.message || '未知错误'));
+                }
+            } catch (e) {
+                alert('打开失败: 网络错误，请检查服务是否启动');
+            }
+        }
+
+        // 文档预览
+        async function previewFile(filePath) {
+            try {
+                const res = await fetch(`/api/preview?file_path=${encodeURIComponent(filePath)}`);
+                const data = await res.json();
+                
+                if (!res.ok) {
+                    alert('预览失败: ' + (data.detail || '未知错误'));
+                    return;
+                }
+                
+                // 创建预览模态框
+                const modal = document.createElement('div');
+                modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                modal.innerHTML = `
+                    <div class="bg-white rounded-lg max-w-4xl max-h-[80vh] w-full mx-4 overflow-hidden">
+                        <div class="flex justify-between items-center p-4 border-b">
+                            <h3 class="font-medium text-gray-800">${escapeHtml(filePath.split('/').pop())}</h3>
+                            <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="p-4 overflow-y-auto max-h-[60vh]">
+                            <pre class="whitespace-pre-wrap text-sm text-gray-700">${escapeHtml(data.content)}</pre>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // 点击背景关闭
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+            } catch (e) {
+                alert('预览失败: 网络错误，请检查服务是否启动');
             }
         }
 
         function renderResults(data) {
+            // 隐藏加载状态
+            document.getElementById('searchLoading').classList.add('hidden');
+
             stats.classList.remove('hidden');
             totalCount.textContent = data.total;
 
             if (data.results.length === 0) {
-                resultList.innerHTML = '<div class="text-center text-gray-400 py-10">未找到匹配结果</div>';
+                document.getElementById('searchEmpty').textContent = '未找到匹配结果';
+                document.getElementById('searchEmpty').classList.remove('hidden');
+                pagination.classList.add('hidden');
                 return;
             }
+
+            document.getElementById('searchEmpty').classList.add('hidden');
 
             resultList.innerHTML = data.results.map(item => `
                 <div class="bg-white p-4 rounded-lg border border-gray-200 hover:shadow-sm transition">
                     <div class="flex justify-between items-start mb-1">
                         <div class="font-medium text-blue-600 truncate" title="${escapeHtml(item.path)}">${escapeHtml(item.filename)}</div>
-                        <span class="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 ml-2 shrink-0">${escapeHtml(item.file_type)}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600 shrink-0">${escapeHtml(item.file_type)}</span>
+                            <button onclick="previewFile('${escapeHtml(item.path)}')" class="text-xs text-blue-500 hover:text-blue-700">预览</button>
+                            <button onclick="openFile('${escapeHtml(item.path)}')" class="text-xs text-green-500 hover:text-green-700">打开</button>
+                        </div>
                     </div>
                     <div class="text-sm text-gray-600 line-clamp-2">${escapeHtml(item.snippet)}</div>
                     <div class="text-xs text-gray-400 mt-2 truncate">${escapeHtml(item.path)}</div>
                 </div>
             `).join('');
+
+            // 更新分页控件
+            totalPages = Math.ceil(data.total / perPage);
+            if (totalPages > 1) {
+                pagination.classList.remove('hidden');
+                pageInfo.textContent = `第 ${currentPage} / ${totalPages} 页`;
+                prevBtn.disabled = currentPage <= 1;
+                nextBtn.disabled = currentPage >= totalPages;
+            } else {
+                pagination.classList.add('hidden');
+            }
         }
     </script>
 </body>

@@ -1,7 +1,18 @@
+import logging
+from functools import lru_cache
 from whoosh.qparser import QueryParser, MultifieldParser
 from whoosh.highlight import HtmlFormatter, ContextFragmenter
-from whoosh.query import Term, NumericRange
+from whoosh.query import Term, NumericRange, And
 from indexer.engine import get_index
+
+logger = logging.getLogger(__name__)
+
+# 缓存解析器实例
+@lru_cache(maxsize=1)
+def _get_parser():
+    """获取缓存的解析器实例"""
+    ix = get_index()
+    return MultifieldParser(["filename", "content"], schema=ix.schema)
 
 def search_documents(query_str: str, page: int = 1, per_page: int = 20, 
                     file_type: str = None, start_time: float = None, end_time: float = None):
@@ -9,8 +20,8 @@ def search_documents(query_str: str, page: int = 1, per_page: int = 20,
     ix = get_index()
 
     with ix.searcher() as searcher:
-        # 同时搜索文件名和正文
-        parser = MultifieldParser(["filename", "content"], schema=ix.schema)
+        # 使用缓存的解析器
+        parser = _get_parser()
         query = parser.parse(query_str)
         
         # 构建过滤条件列表
@@ -28,22 +39,34 @@ def search_documents(query_str: str, page: int = 1, per_page: int = 20,
         
         # 组合所有过滤条件
         if len(filters) > 1:
-            from whoosh.query import And
             query = And(filters)
 
-        results = searcher.search_page(query, page, pagelen=per_page)
+        # 优化搜索性能
+        results = searcher.search_page(
+            query, 
+            page, 
+            pagelen=per_page,
+            sortedby=None,  # 不排序，按相关性返回
+            reverse=False
+        )
+        
         # 高亮配置：用 <mark> 标签包裹关键词
         results.fragmenter = ContextFragmenter(maxchars=200, surround=30)
         results.formatter = HtmlFormatter(tagname="mark", classname="search-hl")
 
         result_list = []
         for hit in results:
+            # 优化大小格式化
+            size_kb = hit["size"] / 1024
+            size_str = f"{size_kb:.1f}" if size_kb < 1024 else f"{size_kb/1024:.1f} MB"
+            
             result_list.append({
                 "path": hit["path"],
                 "filename": hit["filename"],
                 "file_type": hit["file_type"],
                 "snippet": hit.highlights("content") or hit.highlights("filename") or "无预览",
-                "size": round(hit["size"] / 1024, 1)  # 转KB
+                "size": size_kb,
+                "size_str": size_str
             })
 
         return {

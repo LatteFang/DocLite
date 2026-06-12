@@ -1,6 +1,7 @@
 import os
 import shutil
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from whoosh.index import create_in, open_dir
 from whoosh.writing import AsyncWriter
 from .schema import doc_schema
@@ -10,12 +11,27 @@ from scanner.parser import extract_text
 
 logger = logging.getLogger(__name__)
 
+# 并行处理的线程数
+MAX_WORKERS = min(10, os.cpu_count() or 4)
+
+# 批量提交的文档数
+BATCH_SIZE = 500
+
 def init_index():
     """初始化索引目录"""
     if not os.path.exists(INDEX_DIR):
         os.makedirs(INDEX_DIR)
         return create_in(INDEX_DIR, doc_schema)
     return open_dir(INDEX_DIR)
+
+def _extract_text_parallel(file_info: dict):
+    """并行提取文本"""
+    try:
+        content = extract_text(file_info)
+        return file_info, content
+    except Exception as e:
+        logger.error(f"提取文本失败 {file_info['path']}: {e}")
+        return file_info, None
 
 def build_index(scan_path: str):
     """全量重建索引"""
@@ -29,26 +45,44 @@ def build_index(scan_path: str):
     ix = create_in(INDEX_DIR, doc_schema)
     
     files = get_all_files(scan_path)
-    indexed_count = 0
+    logger.info(f"开始索引 {len(files)} 个文件...")
     
-    with AsyncWriter(ix) as writer:
-        for file_info in files:
-            try:
-                content = extract_text(file_info)
+    indexed_count = 0
+    batch_count = 0
+    
+    # 并行提取文本
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(_extract_text_parallel, file_info): file_info 
+                   for file_info in files}
+        
+        with AsyncWriter(ix) as writer:
+            for future in as_completed(futures):
+                file_info, content = future.result()
+                
                 if not content:
                     logger.warning(f"无法提取内容: {file_info['path']}")
                     continue
-                writer.add_document(
-                    path=file_info["path"],
-                    filename=file_info["filename"],
-                    content=content,
-                    file_type=file_info["file_type"],
-                    mtime=file_info["mtime"],
-                    size=file_info["size"]
-                )
-                indexed_count += 1
-            except Exception as e:
-                logger.error(f"索引文件失败 {file_info['path']}: {e}")
+                
+                try:
+                    writer.add_document(
+                        path=file_info["path"],
+                        filename=file_info["filename"],
+                        content=content,
+                        file_type=file_info["file_type"],
+                        mtime=file_info["mtime"],
+                        size=file_info["size"]
+                    )
+                    indexed_count += 1
+                    batch_count += 1
+                    
+                    # 批量提交
+                    if batch_count >= BATCH_SIZE:
+                        writer.commit()
+                        writer = AsyncWriter(ix)
+                        batch_count = 0
+                        logger.info(f"已索引 {indexed_count}/{len(files)} 个文件")
+                except Exception as e:
+                    logger.error(f"索引文件失败 {file_info['path']}: {e}")
     
     logger.info(f"索引构建完成，成功索引 {indexed_count}/{len(files)} 个文件")
     return indexed_count
