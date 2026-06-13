@@ -198,15 +198,78 @@ POST /api/folders/remove?path=...         # 移除扫描文件夹
 GET  /api/folders/browse?path=...         # 浏览目录（用于前端选择）
 
 GET  /api/settings                        # 读取应用设置
-POST /api/settings                        # 更新应用设置（OCR / Embedding / API Provider）
+POST /api/settings                        # 更新应用设置（OCR / Embedding / API Provider，JSON body）
+POST /api/settings/api-config?provider=&base_url=&api_key=&model=   # 更新 LLM 配置
+POST /api/settings/embedding-model?model_name=                       # 更新 Embedding 模型
+POST /api/settings/logo?logo_data=                                   # 更新应用 Logo
 GET  /api/settings/providers              # LLM Provider 列表（ollama / openai / custom）
 GET  /api/settings/embedding-models       # Embedding 模型列表
 GET  /api/settings/ocr-languages          # Tesseract 语言列表
-GET  /api/settings/logo?logo_data=...     # 更新应用 Logo
 
 GET  /api/csrf-token                      # 获取 CSRF 令牌
 GET  /api/health                          # 健康检查
 ```
+
+#### 调用示例
+
+所有 `POST` 接口都需要 CSRF 令牌（放在 `x-csrf-token` 请求头）。典型流程：先取令牌 → 再带令牌调用。
+
+```bash
+# 1. 启动时取一次 CSRF 令牌（每次重启服务后需重新获取）
+TOKEN=$(curl -s http://localhost:8000/api/csrf-token | python3 -c "import json,sys; print(json.load(sys.stdin)['csrf_token'])")
+
+# 2. 健康检查（不需要令牌）
+curl http://localhost:8000/api/health
+# => {"status":"ok","version":"0.6.0"}
+
+# 3. 扫描文件夹管理
+curl http://localhost:8000/api/folders/list
+# => {"status":"ok","folders":["/Users/fjq/notes"]}
+
+curl -X POST -H "x-csrf-token: $TOKEN" \
+  "http://localhost:8000/api/folders/add?path=/Users/fjq/notes"
+
+curl -X POST -H "x-csrf-token: $TOKEN" \
+  "http://localhost:8000/api/folders/remove?path=/Users/fjq/notes"
+
+# 浏览目录（用于前端选择器）
+curl "http://localhost:8000/api/folders/browse?path=/Users/fjq"
+# => {"status":"ok","current_path":"/Users/fjq","parent_path":"/Users",
+#     "items":[{"name":"notes","path":"/Users/fjq/notes","is_dir":true}, ...]}
+
+# 4. 读取 / 写入应用设置
+curl http://localhost:8000/api/settings
+# => {"status":"ok","settings":{... "ocr_enabled":true, "ocr_language":"chi_sim+eng", ...}}
+
+# 写设置：POST JSON body，字段对齐 AppSettings 模型
+curl -X POST -H "x-csrf-token: $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+    "ocr_enabled": true,
+    "ocr_language": "chi_sim+eng",
+    "embedding_provider": "local",
+    "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+    "api_provider": "ollama",
+    "api_base_url": "http://localhost:11434",
+    "api_key": "",
+    "api_model": "qwen2:1.5b"
+  }' \
+  http://localhost:8000/api/settings
+
+# 单独更新 LLM 配置（query 参数形式，便于脚本化）
+curl -X POST -H "x-csrf-token: $TOKEN" \
+  "http://localhost:8000/api/settings/api-config?provider=openai&base_url=https://api.openai.com/v1&api_key=sk-xxx&model=gpt-4o-mini"
+
+# 单独切换 Embedding 模型
+curl -X POST -H "x-csrf-token: $TOKEN" \
+  "http://localhost:8000/api/settings/embedding-model?model_name=bge-small-zh-v1.5"
+
+# 5. 枚举下拉选项
+curl http://localhost:8000/api/settings/providers
+curl http://localhost:8000/api/settings/embedding-models
+curl http://localhost:8000/api/settings/ocr-languages
+```
+
+> **提示**：`POST /api/settings` 会整体覆盖当前设置，建议先 `GET` 一次拿到现有值再改字段后回传；只改单字段时优先用 `api-config` / `embedding-model` 这类专用端点。
 
 ---
 
