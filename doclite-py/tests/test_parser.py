@@ -119,12 +119,89 @@ class TestParser:
         """测试 OCR 禁用时的图片提取"""
         with patch('api.settings.load_settings') as mock_settings:
             mock_settings.return_value.ocr_enabled = False
-            
+
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
                 temp_path = f.name
-            
+
             try:
                 result = _extract_image(temp_path)
                 assert result == ""
+            finally:
+                os.unlink(temp_path)
+
+    def test_extract_pdf_with_images(self):
+        """测试 PDF 文本抽取 + 嵌入图片 OCR 拼接"""
+        # 构造 mock 的 fitz.Document：1 页 + 1 张图，文本为 "正文内容"
+        mock_page = MagicMock()
+        mock_page.get_text.return_value = "正文内容"
+        mock_page.get_images.return_value = [(1, 0, 0, 0, 0, 0, 0)]  # xref, smask, w, h, bpc, cs, name
+
+        mock_pix = MagicMock()
+        mock_pix.save = MagicMock()
+        mock_pix.n = 3
+        mock_pix.alpha = 0
+
+        mock_doc = MagicMock()
+        mock_doc.__enter__ = MagicMock(return_value=mock_doc)
+        mock_doc.__exit__ = MagicMock(return_value=False)
+        mock_doc.__iter__ = MagicMock(return_value=iter([mock_page]))
+        mock_doc.get_page_images.return_value = [(1, 0, 0, 0, 0, 0, 0)]
+        mock_doc.extract_image.return_value = (0, b"", 0, 0, 0, 0, "")
+        # Pixmap(doc, xref) 返回 mock_pix
+        mock_doc.__getitem__ = MagicMock(return_value=mock_pix)
+
+        with patch('scanner.parser.fitz.open', return_value=mock_doc), \
+             patch('scanner.parser.fitz.Pixmap', return_value=mock_pix), \
+             patch('pytesseract.image_to_string', return_value="图片文字") as mock_ocr, \
+             patch('api.settings.load_settings') as mock_settings, \
+             patch('scanner.parser.os.unlink') as mock_unlink:
+            mock_settings.return_value.ocr_enabled = True
+            mock_settings.return_value.ocr_language = 'chi_sim+eng'
+
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
+                temp_path = f.name
+
+            try:
+                file_info = {'path': temp_path, 'filename': 'x.pdf', 'file_type': 'pdf'}
+                result = extract_text(file_info)
+
+                # 正文 + 图片 OCR 标记
+                assert "正文内容" in result
+                assert "[图片OCR]" in result
+                assert "图片文字" in result
+                mock_ocr.assert_called_once()
+                # 临时文件清理
+                mock_unlink.assert_called()
+            finally:
+                os.unlink(temp_path)
+
+    def test_extract_pdf_ocr_disabled(self):
+        """测试 OCR 禁用时 PDF 不调用图片 OCR"""
+        mock_page = MagicMock()
+        mock_page.get_text.return_value = "正文内容"
+
+        mock_doc = MagicMock()
+        mock_doc.__enter__ = MagicMock(return_value=mock_doc)
+        mock_doc.__exit__ = MagicMock(return_value=False)
+        mock_doc.__iter__ = MagicMock(return_value=iter([mock_page]))
+        mock_doc.get_page_images.return_value = [(1, 0, 0, 0, 0, 0, 0)]
+
+        with patch('scanner.parser.fitz.open', return_value=mock_doc), \
+             patch('pytesseract.image_to_string') as mock_ocr, \
+             patch('api.settings.load_settings') as mock_settings, \
+             patch('scanner.parser.os.unlink') as mock_unlink:
+            mock_settings.return_value.ocr_enabled = False
+
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
+                temp_path = f.name
+
+            try:
+                file_info = {'path': temp_path, 'filename': 'x.pdf', 'file_type': 'pdf'}
+                result = extract_text(file_info)
+
+                assert "正文内容" in result
+                assert "[图片OCR]" not in result
+                mock_ocr.assert_not_called()
+                mock_unlink.assert_not_called()
             finally:
                 os.unlink(temp_path)

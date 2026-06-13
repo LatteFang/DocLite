@@ -30,12 +30,55 @@ def _register_extractor(file_type: str):
 
 @_register_extractor("pdf")
 def _extract_pdf(file_path: str) -> str:
-    """提取 PDF 文件文本"""
-    text = ""
+    """提取 PDF 文件文本（含嵌入图片 OCR）"""
+    text_parts = []
     with fitz.open(file_path) as doc:
         for page in doc:
-            text += page.get_text()
-    return text.strip()
+            text_parts.append(page.get_text())
+            image_text = _ocr_pdf_page_images(doc, page)
+            if image_text:
+                text_parts.append("\n[图片OCR]\n" + image_text + "\n")
+    return "".join(text_parts).strip()
+
+
+def _ocr_pdf_page_images(doc, page) -> str:
+    """对 PDF 单页的嵌入图片做 OCR，返回拼接文本；失败/禁用返回空串"""
+    try:
+        import pytesseract
+    except ImportError:
+        logger.warning("pytesseract 未安装，跳过 PDF 图片 OCR")
+        return ""
+
+    from api.settings import load_settings
+    settings = load_settings()
+    if not settings.ocr_enabled:
+        return ""
+
+    image_texts = []
+    for img_info in page.get_images(full=True):
+        xref = img_info[0]
+        try:
+            pix = fitz.Pixmap(doc, xref)
+            if pix.n - pix.alpha >= 4:
+                pix = fitz.Pixmap(fitz.csRGB, pix)
+            import tempfile
+            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            tmp_path = tmp.name
+            tmp.close()
+            try:
+                pix.save(tmp_path)
+                text = pytesseract.image_to_string(tmp_path, lang=settings.ocr_language).strip()
+                if text:
+                    image_texts.append(text)
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+        except Exception as e:
+            logger.warning(f"PDF 图片 OCR 失败 xref={xref}: {e}")
+            continue
+    return "\n".join(image_texts)
 
 @_register_extractor("docx")
 def _extract_docx(file_path: str) -> str:
