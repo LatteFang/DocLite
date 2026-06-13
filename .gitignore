@@ -72,6 +72,6 @@ Desktop.ini
 sample_docs/
 *.log
 MEMORY.md
-CHANGELOG.md
 ITERATION_PLAN.md
 EVALUATION_REPORT.md
+docs/
