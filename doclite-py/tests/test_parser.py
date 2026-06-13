@@ -1,7 +1,8 @@
 import os
 import pytest
 import tempfile
-from scanner.parser import extract_text, _extract_plain_text, EXTRACTORS
+from unittest.mock import patch, MagicMock
+from scanner.parser import extract_text, _extract_plain_text, _extract_image, EXTRACTORS
 
 class TestParser:
     """解析器测试类"""
@@ -90,3 +91,40 @@ class TestParser:
             assert "这是内容" in result
         finally:
             os.unlink(temp_path)
+    
+    def test_extract_image_ocr(self):
+        """测试图片 OCR 提取"""
+        with patch('pytesseract.image_to_string') as mock_ocr, \
+             patch('PIL.Image.open') as mock_open, \
+             patch('api.settings.load_settings') as mock_settings:
+            
+            # 设置 mock
+            mock_settings.return_value.ocr_enabled = True
+            mock_settings.return_value.ocr_language = 'chi_sim+eng'
+            mock_ocr.return_value = "OCR 识别结果"
+            mock_open.return_value = MagicMock()
+            
+            # 创建临时图片文件
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                temp_path = f.name
+            
+            try:
+                result = _extract_image(temp_path)
+                assert result == "OCR 识别结果"
+                mock_ocr.assert_called_once()
+            finally:
+                os.unlink(temp_path)
+    
+    def test_extract_image_ocr_disabled(self):
+        """测试 OCR 禁用时的图片提取"""
+        with patch('api.settings.load_settings') as mock_settings:
+            mock_settings.return_value.ocr_enabled = False
+            
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                temp_path = f.name
+            
+            try:
+                result = _extract_image(temp_path)
+                assert result == ""
+            finally:
+                os.unlink(temp_path)
