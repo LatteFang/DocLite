@@ -7,15 +7,14 @@
 - PPTX: 使用 python-pptx 提取幻灯片文本
 - XLSX: 使用 openpyxl 提取单元格文本
 - MD/TXT: 直接读取纯文本内容
+- Image: 使用 Tesseract OCR 提取图片文字（需要 pytesseract 和 Pillow）
 """
 
 import os
 import logging
-from typing import Dict, Callable
+from typing import Dict, Callable, Any
 import fitz  # PyMuPDF
 from docx import Document
-import pytesseract
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +96,13 @@ def _extract_plain_text(file_path: str) -> str:
 @_register_extractor("gif")
 def _extract_image(file_path: str) -> str:
     """提取图片文件文本（OCR）"""
+    try:
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        logger.warning("pytesseract 或 Pillow 未安装，无法进行 OCR 识别")
+        return ""
+    
     from api.settings import load_settings
     settings = load_settings()
     
@@ -111,7 +117,7 @@ def _extract_image(file_path: str) -> str:
         logger.error(f"OCR 识别失败 {file_path}: {e}")
         return ""
 
-def extract_text(file_info: Dict[str, any]) -> str:
+def extract_text(file_info: Dict[str, Any]) -> str:
     """
     根据文件类型提取纯文本内容
     
