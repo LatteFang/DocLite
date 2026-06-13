@@ -1,8 +1,13 @@
+"""
+索引引擎模块 - 索引构建、更新和管理
+"""
+
 import os
 import shutil
 import logging
+from typing import Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from whoosh.index import create_in, open_dir
+from whoosh.index import create_in, open_dir, Index
 from whoosh.writing import AsyncWriter
 from .schema import doc_schema
 from config import INDEX_DIR

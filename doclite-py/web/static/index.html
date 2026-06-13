@@ -11,14 +11,179 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div class="max-w-4xl mx-auto px-4 py-10">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">DocLite</h1>
-        <p class="text-center text-gray-500 mb-8">本地离线文档全文检索工具</p>
+        <div class="flex justify-between items-center mb-2">
+            <h1 id="appTitle" class="text-3xl font-bold text-gray-800">DocLite</h1>
+            <button id="settingsBtn" class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg" title="设置">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+            </button>
+        </div>
+        <p class="text-gray-500 mb-8">本地离线文档全文检索工具</p>
+
+        <!-- 设置弹窗 -->
+        <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden">
+                <div class="flex justify-between items-center p-4 border-b">
+                    <h3 class="font-medium text-gray-800 text-lg">设置</h3>
+                    <button id="closeSettingsModal" class="text-gray-500 hover:text-gray-700">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="p-6 overflow-y-auto max-h-[60vh]">
+                    <!-- 应用 Logo 设置 -->
+                    <div class="mb-6">
+                        <h4 class="font-medium text-gray-700 mb-3">应用名称</h4>
+                        <input id="settingsAppName" type="text" placeholder="DocLite"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+
+                    <!-- Embedding 模型设置 -->
+                    <div class="mb-6">
+                        <h4 class="font-medium text-gray-700 mb-3">向量模型 (Embedding)</h4>
+                        
+                        <!-- 提供商选择 -->
+                        <div class="mb-3">
+                            <label class="block text-sm text-gray-600 mb-1">提供商</label>
+                            <select id="settingsEmbeddingProvider" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                <option value="local">本地模型 (sentence-transformers)</option>
+                                <option value="ollama">Ollama (本地服务)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 本地模型选择 -->
+                        <div id="localEmbeddingSection">
+                            <label class="block text-sm text-gray-600 mb-1">模型</label>
+                            <select id="settingsEmbeddingModel" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                <option value="paraphrase-multilingual-MiniLM-L12-v2">MiniLM-L12 (多语言, 118MB)</option>
+                                <option value="all-MiniLM-L6-v2">MiniLM-L6 (英文, 80MB)</option>
+                                <option value="bge-small-zh-v1.5">BGE-small 中文 (80MB)</option>
+                                <option value="bge-base-zh-v1.5">BGE-base 中文 (400MB)</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">首次使用会自动下载模型，请确保网络连接</p>
+                        </div>
+                        
+                        <!-- Ollama 模型配置 -->
+                        <div id="ollamaEmbeddingSection" class="hidden">
+                            <div class="mb-3">
+                                <label class="block text-sm text-gray-600 mb-1">Ollama 地址</label>
+                                <input id="settingsEmbeddingApiUrl" type="text" placeholder="http://localhost:11434"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                            </div>
+                            <div class="mb-3">
+                                <label class="block text-sm text-gray-600 mb-1">模型名称</label>
+                                <input id="settingsEmbeddingApiModel" type="text" placeholder="nomic-embed-text"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                <p class="text-xs text-gray-500 mt-1">需要先在 Ollama 中拉取模型: ollama pull nomic-embed-text</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- API 模型设置 -->
+                    <div class="mb-6">
+                        <h4 class="font-medium text-gray-700 mb-3">对话模型 (API)</h4>
+                        
+                        <!-- API 提供商选择 -->
+                        <div class="mb-3">
+                            <label class="block text-sm text-gray-600 mb-1">提供商</label>
+                            <select id="settingsApiProvider" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                <option value="ollama">Ollama (本地)</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="custom">自定义 API</option>
+                            </select>
+                        </div>
+                        
+                        <!-- API URL -->
+                        <div class="mb-3">
+                            <label class="block text-sm text-gray-600 mb-1">API 地址</label>
+                            <input id="settingsApiUrl" type="text" placeholder="http://localhost:11434"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                        
+                        <!-- API Key (OpenAI 需要) -->
+                        <div id="apiKeySection" class="mb-3 hidden">
+                            <label class="block text-sm text-gray-600 mb-1">API Key</label>
+                            <input id="settingsApiKey" type="password" placeholder="sk-..."
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                        
+                        <!-- 模型名称 -->
+                        <div class="mb-3">
+                            <label class="block text-sm text-gray-600 mb-1">模型名称</label>
+                            <input id="settingsApiModel" type="text" placeholder="qwen2:1.5b"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 底部按钮 -->
+                <div class="p-4 border-t bg-gray-50 flex justify-end gap-2">
+                    <button id="cancelSettingsBtn" class="px-4 py-2 text-gray-600 hover:text-gray-800 rounded-lg">取消</button>
+                    <button id="saveSettingsBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">保存设置</button>
+                </div>
+            </div>
+        </div>
 
         <!-- 模式切换 -->
         <div class="flex justify-center mb-6">
             <div class="bg-gray-200 rounded-lg p-1">
                 <button id="searchTab" class="px-4 py-2 rounded-md bg-white shadow-sm text-gray-800 font-medium">搜索</button>
                 <button id="chatTab" class="px-4 py-2 rounded-md text-gray-600 hover:text-gray-800">问答</button>
+            </div>
+        </div>
+
+        <!-- 文件夹选择区域 -->
+        <div id="folderSection" class="mb-6">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-sm font-medium text-gray-700">扫描文件夹</h3>
+                <button id="addFolderBtn" class="text-sm text-blue-600 hover:text-blue-800">+ 添加文件夹</button>
+            </div>
+            
+            <!-- 已选文件夹列表 -->
+            <div id="folderList" class="flex flex-wrap gap-2 mb-3">
+                <div class="text-gray-400 text-sm">未选择任何文件夹</div>
+            </div>
+            
+            <!-- 文件夹选择弹窗 -->
+            <div id="folderModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white rounded-lg w-full max-w-2xl mx-4 overflow-hidden">
+                    <div class="flex justify-between items-center p-4 border-b">
+                        <h3 class="font-medium text-gray-800">选择文件夹</h3>
+                        <button id="closeFolderModal" class="text-gray-500 hover:text-gray-700">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- 路径输入 -->
+                    <div class="p-4 border-b">
+                        <div class="flex gap-2">
+                            <input id="folderPathInput" type="text" placeholder="输入文件夹路径..."
+                                class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                            <button id="goToPathBtn" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm">前往</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 目录浏览 -->
+                    <div class="p-4">
+                        <div id="breadcrumb" class="text-sm text-gray-500 mb-3"></div>
+                        <div id="folderBrowser" class="h-64 overflow-y-auto border border-gray-200 rounded-lg">
+                            <div class="text-center text-gray-400 py-10">加载中...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 底部按钮 -->
+                    <div class="p-4 border-t bg-gray-50">
+                        <button id="selectCurrentFolder" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            选择当前文件夹
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -116,6 +281,353 @@
         const perPage = 20;
         let chatHistory = [];
         let searchHistory = JSON.parse(localStorage.getItem('doclite_search_history') || '[]');
+        let csrfToken = null;
+
+        // ==================== 文件夹管理 ====================
+        const addFolderBtn = document.getElementById('addFolderBtn');
+        const folderList = document.getElementById('folderList');
+        const folderModal = document.getElementById('folderModal');
+        const closeFolderModal = document.getElementById('closeFolderModal');
+        const folderPathInput = document.getElementById('folderPathInput');
+        const goToPathBtn = document.getElementById('goToPathBtn');
+        const breadcrumb = document.getElementById('breadcrumb');
+        const folderBrowser = document.getElementById('folderBrowser');
+        const selectCurrentFolder = document.getElementById('selectCurrentFolder');
+        
+        let currentBrowsePath = '/Users';  // macOS/Linux 默认路径
+        let selectedFolders = [];
+
+        // 加载已保存的文件夹
+        async function loadFolders() {
+            try {
+                const res = await fetch('/api/folders/list');
+                const data = await res.json();
+                selectedFolders = data.folders || [];
+                renderFolderList();
+            } catch (e) {
+                console.error('加载文件夹失败:', e);
+            }
+        }
+
+        // 渲染文件夹列表
+        function renderFolderList() {
+            if (selectedFolders.length === 0) {
+                folderList.innerHTML = '<div class="text-gray-400 text-sm">未选择任何文件夹</div>';
+                return;
+            }
+            
+            folderList.innerHTML = selectedFolders.map(folder => `
+                <div class="flex items-center gap-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                    <span class="truncate max-w-48" title="${escapeHtml(folder)}">📁 ${escapeHtml(folder.split('/').pop())}</span>
+                    <button onclick="removeFolder('${escapeHtml(folder)}')" class="text-blue-600 hover:text-blue-800 ml-1">×</button>
+                </div>
+            `).join('');
+        }
+
+        // 添加文件夹
+        async function addFolder(path) {
+            try {
+                const res = await fetchWithCsrf(`/api/folders/add?path=${encodeURIComponent(path)}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    selectedFolders = data.folders;
+                    renderFolderList();
+                } else {
+                    alert(data.detail || '添加失败');
+                }
+            } catch (e) {
+                alert('添加失败: ' + e.message);
+            }
+        }
+
+        // 移除文件夹
+        async function removeFolder(path) {
+            try {
+                const res = await fetchWithCsrf(`/api/folders/remove?path=${encodeURIComponent(path)}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    selectedFolders = data.folders;
+                    renderFolderList();
+                }
+            } catch (e) {
+                alert('移除失败: ' + e.message);
+            }
+        }
+
+        // 浏览目录
+        async function browseDirectory(path) {
+            currentBrowsePath = path;
+            folderPathInput.value = path;
+            
+            try {
+                const res = await fetch(`/api/folders/browse?path=${encodeURIComponent(path)}`);
+                const data = await res.json();
+                
+                if (data.status === 'ok') {
+                    renderBreadcrumb(data.current_path);
+                    renderFolderItems(data.items, data.parent_path);
+                }
+            } catch (e) {
+                folderBrowser.innerHTML = '<div class="text-center text-red-500 py-10">加载失败</div>';
+            }
+        }
+
+        // 渲染面包屑导航
+        function renderBreadcrumb(path) {
+            const parts = path.split('/').filter(p => p);
+            let html = '<span class="cursor-pointer hover:text-blue-600" onclick="browseDirectory(\'/\')">/</span>';
+            let currentPath = '';
+            
+            parts.forEach((part, index) => {
+                currentPath += '/' + part;
+                const pathCopy = currentPath;
+                html += `<span class="cursor-pointer hover:text-blue-600" onclick="browseDirectory('${pathCopy}')">${escapeHtml(part)}</span>`;
+                if (index < parts.length - 1) {
+                    html += ' / ';
+                }
+            });
+            
+            breadcrumb.innerHTML = html;
+        }
+
+        // 渲染目录项
+        function renderFolderItems(items, parentPath) {
+            if (items.length === 0) {
+                folderBrowser.innerHTML = '<div class="text-center text-gray-400 py-10">空目录</div>';
+                return;
+            }
+            
+            folderBrowser.innerHTML = items.map(item => `
+                <div class="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer ${item.is_dir ? '' : 'opacity-50'}"
+                     onclick="${item.is_dir ? `browseDirectory('${escapeHtml(item.path)}')` : ''}">
+                    <span class="mr-2">${item.is_dir ? '📁' : '📄'}</span>
+                    <span class="text-sm truncate">${escapeHtml(item.name)}</span>
+                </div>
+            `).join('');
+        }
+
+        // 打开文件夹选择弹窗
+        addFolderBtn.addEventListener('click', () => {
+            folderModal.classList.remove('hidden');
+            browseDirectory(currentBrowsePath || '/');
+        });
+
+        // 关闭弹窗
+        closeFolderModal.addEventListener('click', () => {
+            folderModal.classList.add('hidden');
+        });
+
+        // 点击背景关闭
+        folderModal.addEventListener('click', (e) => {
+            if (e.target === folderModal) {
+                folderModal.classList.add('hidden');
+            }
+        });
+
+        // 前往指定路径
+        goToPathBtn.addEventListener('click', () => {
+            const path = folderPathInput.value.trim();
+            if (path) {
+                browseDirectory(path);
+            }
+        });
+
+        // 回车前往
+        folderPathInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                goToPathBtn.click();
+            }
+        });
+
+        // 选择当前文件夹
+        selectCurrentFolder.addEventListener('click', () => {
+            addFolder(currentBrowsePath);
+            folderModal.classList.add('hidden');
+        });
+
+        // 初始化加载文件夹
+        loadFolders();
+
+        // ==================== CSRF 令牌 ====================
+        // ==================== 设置管理 ====================
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsModal = document.getElementById('settingsModal');
+        const closeSettingsModal = document.getElementById('closeSettingsModal');
+        const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+        const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+        const settingsAppName = document.getElementById('settingsAppName');
+        const settingsEmbeddingProvider = document.getElementById('settingsEmbeddingProvider');
+        const settingsEmbeddingModel = document.getElementById('settingsEmbeddingModel');
+        const settingsEmbeddingApiUrl = document.getElementById('settingsEmbeddingApiUrl');
+        const settingsEmbeddingApiModel = document.getElementById('settingsEmbeddingApiModel');
+        const localEmbeddingSection = document.getElementById('localEmbeddingSection');
+        const ollamaEmbeddingSection = document.getElementById('ollamaEmbeddingSection');
+        const settingsApiProvider = document.getElementById('settingsApiProvider');
+        const settingsApiUrl = document.getElementById('settingsApiUrl');
+        const settingsApiKey = document.getElementById('settingsApiKey');
+        const settingsApiModel = document.getElementById('settingsApiModel');
+        const apiKeySection = document.getElementById('apiKeySection');
+        const appTitle = document.getElementById('appTitle');
+
+        // 加载设置
+        async function loadSettings() {
+            try {
+                const res = await fetch('/api/settings/');
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    const settings = data.settings;
+                    settingsAppName.value = settings.app_name || 'DocLite';
+                    settingsEmbeddingProvider.value = settings.embedding_provider || 'local';
+                    settingsEmbeddingModel.value = settings.embedding_model || 'paraphrase-multilingual-MiniLM-L12-v2';
+                    settingsEmbeddingApiUrl.value = settings.embedding_api_url || 'http://localhost:11434';
+                    settingsEmbeddingApiModel.value = settings.embedding_api_model || '';
+                    settingsApiProvider.value = settings.api_provider || 'ollama';
+                    settingsApiUrl.value = settings.api_base_url || 'http://localhost:11434';
+                    settingsApiModel.value = settings.api_model || 'qwen2:1.5b';
+                    appTitle.textContent = settings.app_name || 'DocLite';
+                    updateApiKeyVisibility();
+                    updateEmbeddingProviderVisibility();
+                }
+            } catch (e) {
+                console.error('加载设置失败:', e);
+            }
+        }
+
+        // 保存设置
+        async function saveSettings() {
+            const settings = {
+                app_name: settingsAppName.value || 'DocLite',
+                app_icon: '',
+                embedding_provider: settingsEmbeddingProvider.value,
+                embedding_model: settingsEmbeddingModel.value,
+                embedding_api_url: settingsEmbeddingApiUrl.value,
+                embedding_api_model: settingsEmbeddingApiModel.value,
+                api_provider: settingsApiProvider.value,
+                api_base_url: settingsApiUrl.value,
+                api_key: settingsApiKey.value,
+                api_model: settingsApiModel.value
+            };
+            
+            try {
+                const res = await fetchWithCsrf('/api/settings/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    appTitle.textContent = settings.app_name;
+                    settingsModal.classList.add('hidden');
+                    alert('设置已保存');
+                } else {
+                    alert('保存失败: ' + (data.detail || '未知错误'));
+                }
+            } catch (e) {
+                alert('保存失败: ' + e.message);
+            }
+        }
+
+        // 根据 API 提供商显示/隐藏 API Key 输入框
+        function updateApiKeyVisibility() {
+            const provider = settingsApiProvider.value;
+            if (provider === 'openai' || provider === 'custom') {
+                apiKeySection.classList.remove('hidden');
+            } else {
+                apiKeySection.classList.add('hidden');
+            }
+            
+            // 更新默认 URL
+            if (provider === 'ollama') {
+                settingsApiUrl.value = 'http://localhost:11434';
+                settingsApiModel.placeholder = 'qwen2:1.5b';
+            } else if (provider === 'openai') {
+                settingsApiUrl.value = 'https://api.openai.com/v1';
+                settingsApiModel.placeholder = 'gpt-3.5-turbo';
+            } else {
+                settingsApiUrl.value = '';
+                settingsApiModel.placeholder = '模型名称';
+            }
+        }
+
+        // 根据 Embedding 提供商显示/隐藏相关配置
+        function updateEmbeddingProviderVisibility() {
+            const provider = settingsEmbeddingProvider.value;
+            if (provider === 'local') {
+                localEmbeddingSection.classList.remove('hidden');
+                ollamaEmbeddingSection.classList.add('hidden');
+            } else {
+                localEmbeddingSection.classList.add('hidden');
+                ollamaEmbeddingSection.classList.remove('hidden');
+            }
+        }
+
+        // 打开设置弹窗
+        settingsBtn.addEventListener('click', () => {
+            settingsModal.classList.remove('hidden');
+        });
+
+        // 关闭设置弹窗
+        closeSettingsModal.addEventListener('click', () => {
+            settingsModal.classList.add('hidden');
+        });
+
+        cancelSettingsBtn.addEventListener('click', () => {
+            settingsModal.classList.add('hidden');
+        });
+
+        // 点击背景关闭
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.classList.add('hidden');
+            }
+        });
+
+        // 保存设置
+        saveSettingsBtn.addEventListener('click', saveSettings);
+
+        // API 提供商变化时更新 UI
+        settingsApiProvider.addEventListener('change', updateApiKeyVisibility);
+        
+        // Embedding 提供商变化时更新 UI
+        settingsEmbeddingProvider.addEventListener('change', updateEmbeddingProviderVisibility);
+
+        // 初始化加载设置
+        loadSettings();
+
+        // ==================== CSRF 令牌 ====================
+        // 获取 CSRF 令牌
+        async function getCsrfToken() {
+            if (!csrfToken) {
+                try {
+                    const res = await fetch('/api/csrf-token');
+                    const data = await res.json();
+                    csrfToken = data.csrf_token;
+                } catch (e) {
+                    console.error('获取 CSRF 令牌失败:', e);
+                    // 重试一次
+                    try {
+                        const res = await fetch('/api/csrf-token');
+                        const data = await res.json();
+                        csrfToken = data.csrf_token;
+                    } catch (e2) {
+                        console.error('重试获取 CSRF 令牌失败:', e2);
+                    }
+                }
+            }
+            return csrfToken;
+        }
+
+        // 带 CSRF 令牌的 fetch 封装
+        async function fetchWithCsrf(url, options = {}) {
+            // 每次请求都获取新的 CSRF 令牌
+            csrfToken = null;
+            const token = await getCsrfToken();
+            if (!options.headers) {
+                options.headers = {};
+            }
+            options.headers['x-csrf-token'] = token;
+            return fetch(url, options);
+        }
 
         // XSS 防护：转义 HTML 特殊字符
         function escapeHtml(text) {
@@ -146,11 +658,16 @@
 
         // RAG 索引
         ragIndexBtn.addEventListener('click', async () => {
+            if (selectedFolders.length === 0) {
+                alert('请先在上方选择要索引的文件夹');
+                return;
+            }
+            
             ragIndexBtn.disabled = true;
             ragIndexBtn.textContent = '索引中...';
             ragIndexStatus.textContent = '正在构建 RAG 索引，请稍候...';
             try {
-                const res = await fetch('/api/rag/index', { method: 'POST' });
+                const res = await fetchWithCsrf('/api/rag/index', { method: 'POST' });
                 const data = await res.json();
                 if (data.status === 'ok') {
                     ragIndexStatus.textContent = 'RAG 索引构建完成！';
@@ -190,7 +707,7 @@
             renderChatMessages();
 
             try {
-                const res = await fetch(`/api/chat?question=${encodeURIComponent(question)}`);
+                const res = await fetchWithCsrf(`/api/chat?question=${encodeURIComponent(question)}`, { method: 'POST' });
                 const data = await res.json();
                 
                 // 移除加载状态
@@ -357,16 +874,22 @@
 
         // 重建索引
         buildBtn.addEventListener('click', async () => {
+            if (selectedFolders.length === 0) {
+                alert('请先在上方选择要索引的文件夹');
+                return;
+            }
+            
             buildBtn.disabled = true;
             buildBtn.textContent = '构建中...';
             buildBtn.classList.add('opacity-50');
             try {
-                const res = await fetch('/api/index/build', { method: 'POST' });
+                const res = await fetchWithCsrf('/api/index/build', { method: 'POST' });
                 const data = await res.json();
                 if (data.status === 'ok') {
-                    alert(`索引构建完成，共扫描 ${data.scanned_files} 个文件`);
+                    const count = data.scanned_files;
+                    alert(count != null ? `索引构建完成，共扫描 ${count} 个文件` : '索引构建已启动');
                 } else {
-                    alert('构建失败: ' + (data.message || '未知错误'));
+                    alert('构建失败: ' + (data.message || data.detail || '未知错误'));
                 }
             } catch (e) {
                 alert('构建失败: 网络错误，请检查服务是否启动');
@@ -425,7 +948,7 @@
         // 打开原文件
         async function openFile(filePath) {
             try {
-                const res = await fetch(`/api/open?file_path=${encodeURIComponent(filePath)}`, { method: 'POST' });
+                const res = await fetchWithCsrf(`/api/open?file_path=${encodeURIComponent(filePath)}`, { method: 'POST' });
                 const data = await res.json();
                 if (data.status === 'ok') {
                     // 成功打开，不显示提示

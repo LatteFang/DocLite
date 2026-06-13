@@ -1,12 +1,14 @@
 import os
 import logging
-from fastapi import APIRouter, Query, HTTPException, Depends
+from typing import List
+from fastapi import APIRouter, Query, HTTPException, Depends, BackgroundTasks
 
 from config import DEFAULT_SCAN_PATH, BASE_DIR
 from searcher.service import search_documents
 from searcher.retriever import DocumentRetriever
 from searcher.chat import DocumentChat
 from .security import validate_scan_path, verify_csrf_token
+from .folders import load_folders
 
 logger = logging.getLogger(__name__)
 
@@ -66,36 +68,44 @@ def chat_endpoint(
 
 @router.post("/api/rag/index")
 def rag_index_endpoint(
-    path: str = DEFAULT_SCAN_PATH,
+    path: str = None,
     background_tasks: BackgroundTasks = None,
     csrf_token: str = Depends(verify_csrf_token)
 ):
     """RAG 索引"""
     try:
-        safe_path = validate_scan_path(path)
+        # 如果没有指定路径，使用已保存的文件夹列表
+        if path:
+            paths = [validate_scan_path(path)]
+        else:
+            saved_folders = load_folders()
+            if not saved_folders:
+                raise HTTPException(status_code=400, detail="请先选择要索引的文件夹")
+            paths = [validate_scan_path(p) for p in saved_folders]
         
-        def index_documents_for_rag(scan_path):
+        def index_documents_for_rag(scan_paths: List[str]):
             from scanner.walker import get_all_files
             from scanner.parser import extract_text
             
             vector_store_dir = os.path.join(BASE_DIR, ".doclite_vectors")
             retriever = DocumentRetriever(vector_store_dir)
             
-            files = get_all_files(scan_path)
-            for file_info in files:
-                try:
-                    content = extract_text(file_info)
-                    if content:
-                        retriever.index_document(file_info, content)
-                except Exception as e:
-                    logger.error(f"RAG 索引文档失败 {file_info['path']}: {e}")
+            for scan_path in scan_paths:
+                files = get_all_files(scan_path)
+                for file_info in files:
+                    try:
+                        content = extract_text(file_info)
+                        if content:
+                            retriever.index_document(file_info, content)
+                    except Exception as e:
+                        logger.error(f"RAG 索引文档失败 {file_info['path']}: {e}")
         
         if background_tasks:
-            background_tasks.add_task(index_documents_for_rag, safe_path)
-            return {"status": "ok", "message": "RAG 索引已在后台启动", "scan_path": safe_path}
+            background_tasks.add_task(index_documents_for_rag, paths)
+            return {"status": "ok", "message": "RAG 索引已在后台启动", "scan_paths": paths}
         else:
-            index_documents_for_rag(safe_path)
-            return {"status": "ok", "message": "RAG 索引完成", "scan_path": safe_path}
+            index_documents_for_rag(paths)
+            return {"status": "ok", "message": "RAG 索引完成", "scan_paths": paths}
     except HTTPException:
         raise
     except Exception as e:

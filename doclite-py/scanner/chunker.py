@@ -1,8 +1,49 @@
 import re
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
+
+# 句子分隔符列表（按优先级排序）
+SENTENCE_SEPARATORS = ['。', '！', '？', '. ', '! ', '? ', '\n']
+
+def clean_text(text: str) -> str:
+    """
+    清理文本，去除多余空白字符
+    
+    Args:
+        text: 输入文本
+    
+    Returns:
+        清理后的文本
+    """
+    # 合并多个换行符
+    text = re.sub(r'\n+', '\n', text)
+    # 合并多个空格
+    text = re.sub(r' +', ' ', text)
+    # 去除首尾空白
+    return text.strip()
+
+def find_best_split_point(text: str, start: int, end: int) -> int:
+    """
+    查找最佳分割点（句子或段落边界）
+    
+    Args:
+        text: 文本内容
+        start: 起始位置
+        end: 结束位置
+    
+    Returns:
+        最佳分割位置
+    """
+    # 在指定范围内查找分隔符
+    for separator in SENTENCE_SEPARATORS:
+        last_sep = text.rfind(separator, start, end)
+        if last_sep > start:
+            return last_sep + len(separator)
+    
+    # 如果没有找到分隔符，返回原始结束位置
+    return end
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[Dict[str, Any]]:
     """
@@ -20,9 +61,7 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[Dict
         return []
     
     # 清理文本
-    text = re.sub(r'\n+', '\n', text)
-    text = re.sub(r' +', ' ', text)
-    text = text.strip()
+    text = clean_text(text)
     
     chunks = []
     start = 0
@@ -34,19 +73,14 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[Dict
         
         # 如果不是最后一块，尝试在句子或段落边界处断开
         if end < len(text):
-            # 尝试在句号、问号、感叹号后断开
-            for separator in ['。', '！', '？', '. ', '! ', '? ', '\n']:
-                last_sep = text.rfind(separator, start, end)
-                if last_sep > start:
-                    end = last_sep + len(separator)
-                    break
+            end = find_best_split_point(text, start, end)
         
         # 提取块文本
-        chunk_text = text[start:end].strip()
+        chunk_content = text[start:end].strip()
         
-        if chunk_text:
+        if chunk_content:
             chunks.append({
-                'text': chunk_text,
+                'text': chunk_content,
                 'index': chunk_index,
                 'start_pos': start,
                 'end_pos': end

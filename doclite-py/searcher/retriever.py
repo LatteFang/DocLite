@@ -2,6 +2,7 @@ import os
 import logging
 from typing import List, Dict, Optional
 from functools import lru_cache
+import numpy as np
 from indexer.embedder import Embedder, VectorStore
 from scanner.chunker import chunk_document
 from scanner.parser import extract_text
@@ -24,9 +25,12 @@ class DocumentRetriever:
         self.embedder = Embedder(model_name)
         
         # 缓存向量和元数据
-        self._vectors_cache = None
-        self._metadata_cache = None
+        self._vectors_cache: Optional[np.ndarray] = None
+        self._metadata_cache: Optional[List[Dict]] = None
         self._cache_loaded = False
+        
+        # 查询嵌入缓存
+        self._query_cache: Dict[str, np.ndarray] = {}
     
     def _load_cache(self):
         """加载缓存的向量和元数据"""
@@ -39,6 +43,13 @@ class DocumentRetriever:
         self._cache_loaded = False
         self._vectors_cache = None
         self._metadata_cache = None
+        self._query_cache.clear()
+    
+    def _get_query_embedding(self, query: str) -> np.ndarray:
+        """获取查询嵌入（带缓存）"""
+        if query not in self._query_cache:
+            self._query_cache[query] = self.embedder.generate_single_embedding(query)
+        return self._query_cache[query]
     
     def index_document(self, file_info: dict, content: str = None):
         """
@@ -101,19 +112,29 @@ class DocumentRetriever:
         if self._vectors_cache is None or len(self._vectors_cache) == 0:
             return []
         
-        # 生成查询嵌入
-        query_embedding = self.embedder.generate_single_embedding(query)
-        
-        # 使用缓存数据搜索
-        import numpy as np
+        # 获取查询嵌入（带缓存）
+        query_embedding = self._get_query_embedding(query)
         
         # 计算余弦相似度
-        query_norm = query_embedding / np.linalg.norm(query_embedding)
-        vectors_norm = self._vectors_cache / np.linalg.norm(self._vectors_cache, axis=1, keepdims=True)
-        similarities = np.dot(vectors_norm, query_norm)
+        query_norm = np.linalg.norm(query_embedding)
+        if query_norm == 0:
+            return []
         
-        # 获取 top_k 个最相似的结果
-        top_indices = np.argsort(similarities)[::-1][:top_k]
+        query_normalized = query_embedding / query_norm
+        
+        # 向量化计算
+        vectors_norm = np.linalg.norm(self._vectors_cache, axis=1, keepdims=True)
+        vectors_norm = np.where(vectors_norm == 0, 1, vectors_norm)
+        vectors_normalized = self._vectors_cache / vectors_norm
+        
+        similarities = np.dot(vectors_normalized, query_normalized)
+        
+        # 获取 top_k 个最相似的结果（优化排序）
+        if top_k >= len(similarities):
+            top_indices = np.argsort(similarities)[::-1]
+        else:
+            top_indices = np.argpartition(similarities, -top_k)[-top_k:]
+            top_indices = top_indices[np.argsort(similarities[top_indices])[::-1]]
         
         results = []
         for idx in top_indices:

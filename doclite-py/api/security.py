@@ -46,6 +46,7 @@ def validate_scan_path(path: str) -> str:
     allowed_prefixes = [
         os.path.abspath(BASE_DIR),
         os.path.abspath(os.path.join(BASE_DIR, "sample_docs")),
+        os.path.expanduser("~"),  # 允许用户主目录下的所有路径
     ]
     
     is_allowed = any(abs_path.startswith(prefix) for prefix in allowed_prefixes)

@@ -1,0 +1,13 @@
+{
+  "knowledge_bases": {
+    "test_kb": {
+      "id": "test_kb",
+      "name": "test_kb",
+      "description": "test",
+      "created_at": 1781310103.1263082,
+      "vector_dir": "/Users/fjq/online-code/github/DocLite/doclite-py/.doclite_kb/test_kb",
+      "document_count": 0
+    }
+  },
+  "current": "test_kb"
+}

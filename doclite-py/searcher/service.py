@@ -1,5 +1,6 @@
 import logging
 from functools import lru_cache
+from typing import Optional, Dict, Any
 from whoosh.qparser import QueryParser, MultifieldParser
 from whoosh.highlight import HtmlFormatter, ContextFragmenter
 from whoosh.query import Term, NumericRange, And
@@ -7,12 +8,22 @@ from indexer.engine import get_index
 
 logger = logging.getLogger(__name__)
 
-# 缓存解析器实例
-@lru_cache(maxsize=1)
+# 解析器缓存
+_parser_cache: Optional[MultifieldParser] = None
+_parser_schema = None
+
 def _get_parser():
     """获取缓存的解析器实例"""
+    global _parser_cache, _parser_schema
+    
     ix = get_index()
-    return MultifieldParser(["filename", "content"], schema=ix.schema)
+    
+    # 如果 schema 变化了，重新创建解析器
+    if _parser_cache is None or _parser_schema != ix.schema:
+        _parser_cache = MultifieldParser(["filename", "content"], schema=ix.schema)
+        _parser_schema = ix.schema
+    
+    return _parser_cache
 
 def search_documents(query_str: str, page: int = 1, per_page: int = 20, 
                     file_type: str = None, start_time: float = None, end_time: float = None):

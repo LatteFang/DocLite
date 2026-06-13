@@ -195,6 +195,62 @@ export DOCLITE_LOG_LEVEL=INFO
 
 ---
 
+## 🤖 Ollama 集成（可选）
+
+DocLite 支持集成 Ollama 进行更智能的文档问答。Ollama 是一个本地运行大语言模型的工具。
+
+### 安装 Ollama
+
+```bash
+# macOS / Linux
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 或访问 https://ollama.com 下载安装包
+```
+
+### 下载模型
+
+```bash
+# 下载轻量级模型（推荐）
+ollama pull qwen2:1.5b
+
+# 或下载其他模型
+ollama pull llama3.2
+ollama pull mistral
+```
+
+### 集成 DocLite
+
+1. 启动 Ollama 服务：
+```bash
+ollama serve
+```
+
+2. 修改 DocLite 配置，添加 Ollama 支持（需要自行扩展代码）：
+```python
+import requests
+
+def ollama_chat(question: str, context: str) -> str:
+    """使用 Ollama 进行对话"""
+    response = requests.post(
+        "http://localhost:11434/api/generate",
+        json={
+            "model": "qwen2:1.5b",
+            "prompt": f"基于以下文档内容回答问题：\n\n{context}\n\n问题：{question}",
+            "stream": False
+        }
+    )
+    return response.json()["response"]
+```
+
+### 注意事项
+- Ollama 需要单独安装，不是 DocLite 的必需依赖
+- 首次运行模型会自动下载，需要网络连接
+- 建议使用 1.5B-3B 参数的轻量级模型
+- 本地运行需要足够的内存（建议 4GB+）
+
+---
+
 ## ❓ 常见问题
 
 ### Q: 如何修改默认扫描的文件夹路径？

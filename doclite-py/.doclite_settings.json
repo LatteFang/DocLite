@@ -1,0 +1,12 @@
+{
+  "app_name": "DocLite",
+  "app_icon": "",
+  "embedding_provider": "local",
+  "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+  "embedding_api_url": "http://localhost:11434",
+  "embedding_api_model": "",
+  "api_provider": "ollama",
+  "api_base_url": "http://localhost:11434",
+  "api_key": "",
+  "api_model": "qwen2:1.5b"
+}
