@@ -7,11 +7,14 @@ client = TestClient(app)
 class TestIndexRoutes:
     """索引路由测试类"""
     
-    def test_build_index_endpoint_no_folders(self):
+    def test_build_index_endpoint_no_folders(self, monkeypatch):
         """测试构建索引接口（无文件夹时返回400）"""
+        from api import index as index_api
+        monkeypatch.setattr(index_api, "load_folders", lambda: [])
+
         token_response = client.get("/api/csrf-token")
         csrf_token = token_response.json()["csrf_token"]
-        
+
         response = client.post(
             "/api/index/build",
             headers={"x-csrf-token": csrf_token}
@@ -49,11 +52,14 @@ class TestIndexRoutes:
             if os.path.exists(test_file):
                 os.remove(test_file)
     
-    def test_incremental_index_endpoint_no_folders(self):
+    def test_incremental_index_endpoint_no_folders(self, monkeypatch):
         """测试增量索引接口（无文件夹时返回400）"""
+        from api import index as index_api
+        monkeypatch.setattr(index_api, "load_folders", lambda: [])
+
         token_response = client.get("/api/csrf-token")
         csrf_token = token_response.json()["csrf_token"]
-        
+
         response = client.post(
             "/api/index/incremental",
             headers={"x-csrf-token": csrf_token}
